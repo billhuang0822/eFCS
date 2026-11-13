@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>eFCS 分頁展示（Axios）</title>
+<style>body{font:16px system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem}label,button{margin-right:.5rem}table{width:100%;border-collapse:collapse;margin-top:1rem}th,td{border:1px solid #ccc;padding:.5rem;text-align:left}[role=alert]{color:#b00020}</style></head>
+<body><h1>eFCS 分頁展示（HTML + Axios）</h1>
+<label for="code">交易類型</label><select id="code"><option value="T101">T101 查詢</option><option value="T102">T102 繳費</option></select><button id="submit">送出查詢</button>
+<p id="status" aria-live="polite"></p><p id="error" role="alert"></p><section id="results" hidden><p id="count"></p><table><thead id="head"></thead><tbody id="rows"></tbody></table><button id="more" hidden>顯示更多</button></section>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
+<script>
+  const endpoint="/api/messages",pageSize=5,maxPages=100,el=id=>document.getElementById(id),dateTime=()=>new Date().toISOString().replace(/[-:TZ.]/g,"").slice(0,14);
+  const fields={T101:[["queryDetailNo","明細號"],["queryBillData","帳單資料"],["queryAmount","金額"],["queryDate","日期"]],T102:[["detailNo","明細號"],["billData","帳單資料"],["txnAmount","金額"],["rtnCodeDesc","結果"]]};
+  let allRows=[],visibleCount=pageSize,controller;
+  function buildRequest(code){const time=dateTime(),HEAD={txnChannel:"WEB",prsCode:code,txnDataTime:time,txnNo:`WEB-${time}`,billerId:"BILLER001",bTypeClass:"",icChkCode:"",icChkDesc:""};
+    if(code==="T101")return{HEAD,BODY:{queryType:"01",queryData1:"A001",queryData2:"",queryData3:"",queryData4:"",queryData5:"",eBillSn:"",outBankId:"",key:""}};
+    return{HEAD,BODY:{PAYHEAD:{pendingNo:"MOCK-PENDING-001",pendingNotAfter:"",totalCount:1,totalAmount:100,totalFee:0,outBankId:"",memberId:"MEMBER001",payDatetime:time,checkType:"",billType:"01",deviceId:"",carrierType:"",carrierNo:"",mobile:"",accountNo:"",cardNo:"",merchantId:"",mccCode:"",terminal:"",email:"",querySeqNo:""},PAYDETAIL:[{detailNo:"1",txnAmount:100,billData:"MOCK-BILL-1",billBatch:"001"}],key:""}};
+  }
+  function render(code,complete){const cols=fields[code];el("head").replaceChildren();const hr=document.createElement("tr");cols.forEach(([,title])=>{const th=document.createElement("th");th.textContent=title;hr.append(th)});el("head").append(hr);el("rows").replaceChildren();allRows.slice(0,visibleCount).forEach(row=>{const tr=document.createElement("tr");cols.forEach(([key])=>{const td=document.createElement("td");td.textContent=String(row[key]??"-");tr.append(td)});el("rows").append(tr)});el("count").textContent=`${complete?"查詢完成":"已取得資料"}：共 ${allRows.length} 筆。`;el("more").hidden=visibleCount>=allRows.length;el("results").hidden=false;}
+  async function fetchAllPages(code,initialRequest,signal){const detailKey=code==="T101"?"QUERYDETAIL":"PAYDETAIL",seen=new Set();let cursor=initialRequest.BODY.key||"",lastPage=null;allRows=[];visibleCount=pageSize;
+    for(let pageNo=1;pageNo<=maxPages;pageNo++){if(signal.aborted)throw new DOMException("Aborted","AbortError");const payload=structuredClone(initialRequest);payload.BODY.key=cursor;el("status").textContent=`查詢中…第 ${pageNo} 頁`;
+      const {data:page}=await axios.post(`${endpoint}/${code}`,payload,{signal,timeout:30000,headers:{"Content-Type":"application/json",Accept:"application/json"}});
+      if(page.HEAD?.prsCode!==code||!Array.isArray(page.BODY?.[detailKey])||typeof page.BODY.key!=="string"||!page.BODY.key)throw new Error("回應明細或 BODY.key 格式錯誤");
+      allRows.push(...page.BODY[detailKey]);lastPage=page;render(code,false);const next=page.BODY.key;if(next==="END")return{...lastPage,BODY:{...lastPage.BODY,[detailKey]:allRows,key:"END"}};
+      if(next===cursor||seen.has(next))throw new Error(`主機回傳重複分頁 key：${next}`);seen.add(next);cursor=next;
+    }throw new Error(`超過最大分頁數 ${maxPages}`);
+  }
+  el("submit").addEventListener("click",async()=>{const code=el("code").value;controller?.abort();controller=new AbortController();el("error").textContent="";el("results").hidden=true;el("submit").disabled=true;
+    try{const final=await fetchAllPages(code,buildRequest(code),controller.signal);render(code,true);el("status").textContent=`完成，主機 key=${final.BODY.key}`}catch(error){if(!axios.isCancel(error))el("error").textContent=axios.isAxiosError(error)?String(error.response?.data?.message??error.message):error instanceof Error?error.message:"未知錯誤";el("status").textContent=""}finally{el("submit").disabled=false}});
+  el("more").addEventListener("click",()=>{visibleCount=Math.min(visibleCount+pageSize,allRows.length);render(el("code").value,true)});
+</script></body></html>
