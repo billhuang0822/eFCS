@@ -1,6 +1,5 @@
 package com.efcs.pay.api;
 
-import com.efcs.pay.dto.MessageDtos.Envelope;
 import com.efcs.pay.service.EfcsMessageService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.MediaType;
@@ -19,7 +18,7 @@ public class MessageController {
 
     @PostMapping(value = "/{prsCode}", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Envelope<?> send(@PathVariable String prsCode, @RequestBody JsonNode message) {
+    public JsonNode send(@PathVariable String prsCode, @RequestBody JsonNode message) {
         return service.send(prsCode, message);
     }
 }
