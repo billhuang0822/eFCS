@@ -1,0 +1,6 @@
+# Build output
+**/target/
+*.class
+.idea/
+.vscode/
+.DS_Store
