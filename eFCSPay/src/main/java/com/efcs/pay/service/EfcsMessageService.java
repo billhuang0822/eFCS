@@ -8,7 +8,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.Set;
 
-/** Proxies exactly one host page per browser request. Browser owns the continuation cursor. */
+/** Proxies exactly one host page per browser request; the browser owns the T101/T102 cursor loop. */
 @Service
 public class EfcsMessageService {
     private static final Set<String> SUPPORTED_CODES = Set.of("T101", "T102", "T112", "T201");
@@ -30,8 +30,7 @@ public class EfcsMessageService {
         }
         if (!input.path("BODY").isObject()) throw new IllegalArgumentException("BODY must be a JSON object");
 
-        // Deliberately do not loop over the host cursor here. Each browser request
-        // performs one host exchange, keeping each HTTP request bounded.
+        // One browser request makes one upstream host call. Never follow cursors here.
         JsonNode response = restClient.post().uri(hostUrl + "/" + prsCode)
                 .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
                 .body(input).retrieve().body(JsonNode.class);
@@ -42,12 +41,14 @@ public class EfcsMessageService {
             throw new IllegalStateException("Host response HEAD.prsCode does not match " + prsCode);
         }
         if (prsCode.equals("T101") || prsCode.equals("T102")) {
-            String details = prsCode.equals("T101") ? "QUERYDETAIL" : "PAYDETAIL";
-            if (!response.path("BODY").isObject() || !response.path("BODY").path(details).isArray()) {
-                throw new IllegalStateException("Host response BODY." + details + " must be an array");
+            String detailName = prsCode.equals("T101") ? "QUERYDETAIL" : "PAYDETAIL";
+            if (!response.path("BODY").isObject() || !response.path("BODY").path(detailName).isArray()) {
+                throw new IllegalStateException("Host response BODY." + detailName + " must be an array");
             }
             String nextKey = response.path("BODY").path("key").asText("");
-            if (nextKey.isBlank()) throw new IllegalStateException("Host response continuation key is empty; expected END or next key");
+            if (nextKey.isBlank()) {
+                throw new IllegalStateException("Host response continuation key is empty; expected END or next key");
+            }
         }
         return response;
     }

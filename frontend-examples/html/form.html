@@ -13,7 +13,7 @@
 </head>
 <body>
   <h1>eFCS 非同步電文表單</h1>
-  <p class="hint">範例頁面會送出一筆 JSON 至 eFCSPay。T101/T102 的主機 key 續頁由 eFCSPay 處理至 END；此表單不在瀏覽器直接呼叫主機。</p>
+  <p class="hint">T101/T102 由瀏覽器依序自動續查：每個請求只由 eFCSPay 代理一頁，瀏覽器帶回應的 BODY.key 呼叫下一頁，直到 END。瀏覽器不會直接連線電文主機。</p>
   <form id="efcsForm">
     <fieldset><legend>交易與 HEAD</legend>
       <label>交易代碼<select id="prsCode" name="prsCode"><option>T101</option><option>T102</option><option>T112</option><option>T201</option></select></label>
@@ -66,6 +66,7 @@
   <section id="resultSection" hidden><h2>主機回應</h2><p id="summary"></p><div id="tableContainer"></div><details><summary>完整 JSON</summary><pre id="jsonOutput"></pre></details></section>
   <script>
     const ENDPOINT = "/api/messages";
+    const MAX_PAGES = 100;
     const form = document.getElementById("efcsForm");
     const codeSelect = document.getElementById("prsCode");
     const value = (name) => String(new FormData(form).get(name) ?? "");
@@ -98,20 +99,54 @@
       return { HEAD, BODY: { PAYHEAD: { pendingNo: value("t201_pendingNo"), mFlag: value("mFlag") },
         PAYDETAIL: [{ detailNo: value("t201_detailNo") }] } };
     }
+    async function fetchAllPages(code, initialRequest, signal) {
+      const detailKey = code === "T101" ? "QUERYDETAIL" : "PAYDETAIL";
+      const seenKeys = new Set();
+      const allDetails = [];
+      let cursor = initialRequest.BODY.key || "";
+      let finalResponse = null;
+      for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+        if (signal.aborted) throw new DOMException("Request aborted", "AbortError");
+        const pageRequest = structuredClone(initialRequest);
+        pageRequest.BODY.key = cursor;
+        document.getElementById("status").textContent = `正在查詢 ${code} 第 ${pageNo} 頁…`;
+        const response = await fetch(`${ENDPOINT}/${code}`, { method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(pageRequest), signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        const page = await response.json();
+        if (page.HEAD?.prsCode !== code) throw new Error("回應 HEAD.prsCode 與請求不一致");
+        if (!Array.isArray(page.BODY?.[detailKey])) throw new Error(`回應 BODY.${detailKey} 格式錯誤`);
+        if (typeof page.BODY.key !== "string" || !page.BODY.key) throw new Error("回應 BODY.key 為空或格式錯誤");
+        allDetails.push(...page.BODY[detailKey]);
+        finalResponse = page;
+        const nextKey = page.BODY.key;
+        if (nextKey === "END") {
+          return { ...finalResponse, BODY: { ...finalResponse.BODY, [detailKey]: allDetails, key: "END" } };
+        }
+        if (nextKey === cursor || seenKeys.has(nextKey)) throw new Error(`主機回傳重複分頁 key：${nextKey}`);
+        seenKeys.add(nextKey);
+        cursor = nextKey;
+      }
+      throw new Error(`超過最大分頁數 ${MAX_PAGES}`);
+    }
     function renderResponse(code, data) {
       const body = data.BODY || {};
       const detailKey = code === "T101" ? "QUERYDETAIL" : code === "T102" ? "PAYDETAIL" : null;
       document.getElementById("summary").textContent = detailKey
-        ? `${body[detailKey]?.length ?? 0} 筆明細；T101/T102 主機分頁結束 key=${body.key}`
+        ? `${body[detailKey]?.length ?? 0} 筆明細；主機分頁結束 key=${body.key}`
         : code === "T112" ? "T112 樣本回應只有 HEAD，請依主機規格確認回應欄位。" : `T201 回應：totalAmount=${body.totalAmount ?? "-"}, totalFee=${body.totalFee ?? "-"}`;
       const container = document.getElementById("tableContainer"); container.replaceChildren();
       if (detailKey && Array.isArray(body[detailKey])) {
         const table = document.createElement("table");
-        const rows = body[detailKey];
         const columns = code === "T101" ? [["queryDetailNo","明細號"],["queryBillData","帳單資料"],["queryAmount","金額"],["queryDate","日期"]]
           : [["detailNo","明細號"],["billData","帳單資料"],["txnAmount","金額"],["rtnCodeDesc","結果"]];
-        const thead = table.createTHead().insertRow(); columns.forEach(([,title]) => { const th = document.createElement("th"); th.textContent = title; thead.append(th); });
-        const tbody = table.createTBody(); rows.forEach((row) => { const tr = tbody.insertRow(); columns.forEach(([key]) => { const td = tr.insertCell(); td.textContent = String(row[key] ?? "-"); }); });
+        const thead = table.createTHead().insertRow();
+        columns.forEach(([,title]) => { const th = document.createElement("th"); th.textContent = title; thead.append(th); });
+        const tbody = table.createTBody();
+        body[detailKey].forEach((row) => { const tr = tbody.insertRow(); columns.forEach(([key]) => {
+          const td = tr.insertCell(); td.textContent = String(row[key] ?? "-");
+        }); });
         container.append(table);
       }
       document.getElementById("jsonOutput").textContent = JSON.stringify(data, null, 2);
@@ -120,18 +155,26 @@
     codeSelect.addEventListener("change", updateFields); updateFields();
     form.addEventListener("reset", () => setTimeout(updateFields));
     form.addEventListener("submit", async (event) => {
-      event.preventDefault(); const code = codeSelect.value;
+      event.preventDefault();
+      const code = codeSelect.value;
       const button = document.getElementById("submitButton"); button.disabled = true;
       document.getElementById("error").textContent = ""; document.getElementById("resultSection").hidden = true;
+      const controller = new AbortController();
       document.getElementById("status").textContent = `正在送出 ${code}…`;
       try {
-        const response = await fetch(`${ENDPOINT}/${code}`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(buildRequest(code)) });
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-        const data = await response.json();
+        const request = buildRequest(code);
+        const data = code === "T101" || code === "T102"
+          ? await fetchAllPages(code, request, controller.signal)
+          : await (async () => {
+              const response = await fetch(`${ENDPOINT}/${code}`, { method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(request), signal: controller.signal });
+              if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+              return response.json();
+            })();
         if (data.HEAD?.prsCode !== code) throw new Error("回應 HEAD.prsCode 與請求不一致");
-        if ((code === "T101" || code === "T102") && data.BODY?.key !== "END") throw new Error('T101/T102 預期彙總回應 BODY.key="END"');
         renderResponse(code, data); document.getElementById("status").textContent = "交易呼叫完成。";
-        if ((new URLSearchParams(location.search).has("popup") || new URLSearchParams(location.search).has("embedded")) && window.opener) {
+        if (new URLSearchParams(location.search).has("popup") && window.opener) {
           window.opener.postMessage({ type: "EFCS_RESULT", prsCode: code, response: data }, location.origin);
         } else if (new URLSearchParams(location.search).has("embedded") && window.parent !== window) {
           window.parent.postMessage({ type: "EFCS_RESULT", prsCode: code, response: data }, location.origin);
