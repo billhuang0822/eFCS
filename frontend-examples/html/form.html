@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eFCS 非同步電文表單</title>
+  <style>
+    body{font:16px system-ui,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#222}
+    fieldset{margin:1rem 0;padding:1rem;border:1px solid #bbb}label{display:inline-grid;gap:.25rem;margin:.4rem;min-width:210px}
+    input,select,button{font:inherit;padding:.45rem}button{margin:.5rem .3rem .5rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}
+    th,td{border:1px solid #ccc;padding:.45rem;text-align:left}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f5f5;padding:1rem}
+    [role=alert]{color:#a00}.hint{color:#555;font-size:.92rem}
+  </style>
+</head>
+<body>
+  <h1>eFCS 非同步電文表單</h1>
+  <p class="hint">範例頁面會送出一筆 JSON 至 eFCSPay。T101/T102 的主機 key 續頁由 eFCSPay 處理至 END；此表單不在瀏覽器直接呼叫主機。</p>
+  <form id="efcsForm">
+    <fieldset><legend>交易與 HEAD</legend>
+      <label>交易代碼<select id="prsCode" name="prsCode"><option>T101</option><option>T102</option><option>T112</option><option>T201</option></select></label>
+      <label>交易通路<input name="txnChannel" value="WEB" required></label>
+      <label>業者代碼<input name="billerId" value="BILLER001" required></label>
+      <label>業務類別<input name="bTypeClass" value=""></label>
+      <label>交易序號<input name="txnNo" value="" placeholder="留白則自動產生"></label>
+    </fieldset>
+    <fieldset data-code="T101"><legend>T101 查詢條件</legend>
+      <label>queryType<input name="queryType" value="01"></label>
+      <label>queryData1<input name="queryData1" value="A001"></label>
+      <label>queryData2<input name="queryData2" value=""></label><label>queryData3<input name="queryData3" value=""></label>
+      <label>queryData4<input name="queryData4" value=""></label><label>queryData5<input name="queryData5" value=""></label>
+      <label>eBillSn<input name="eBillSn" value=""></label><label>outBankId<input name="outBankId" value=""></label>
+    </fieldset>
+    <fieldset data-code="T102" hidden><legend>T102 繳費資料（mock 測試值）</legend>
+      <label>pendingNo<input name="t102_pendingNo" value="MOCK-PENDING-001"></label>
+      <label>totalCount<input name="t102_totalCount" type="number" value="1"></label>
+      <label>totalAmount<input name="t102_totalAmount" type="number" value="100"></label>
+      <label>totalFee<input name="t102_totalFee" type="number" value="0"></label>
+      <label>memberId<input name="memberId" value="MEMBER001"></label>
+      <label>billType<input name="t102_billType" value="01"></label>
+      <label>明細編號<input name="detailNo" value="1"></label>
+      <label>明細金額<input name="txnAmount" type="number" value="100"></label>
+      <label>帳單資料<input name="billData" value="MOCK-BILL-1"></label>
+      <label>帳單批次<input name="billBatch" value="001"></label>
+    </fieldset>
+    <fieldset data-code="T112" hidden><legend>T112 付款確認資料（mock 測試值）</legend>
+      <label>pendingNo<input name="t112_pendingNo" value="MOCK-PENDING-001"></label>
+      <label>pendingNotAfter<input name="pendingNotAfter" value=""></label>
+      <label>totalCount<input name="t112_totalCount" type="number" value="1"></label>
+      <label>totalAmount<input name="t112_totalAmount" type="number" value="100"></label>
+      <label>outBankId<input name="t112_outBankId" value=""></label><label>memberId<input name="t112_memberId" value="MEMBER001"></label>
+      <label>outAccountNum<input name="outAccountNum" value=""></label><label>checkType<input name="checkType" value=""></label>
+      <label>billType<input name="t112_billType" value="01"></label><label>deviceId<input name="deviceId" value=""></label>
+      <label>carrierType<input name="carrierType" value=""></label><label>carrierNo<input name="carrierNo" value=""></label>
+      <label>mobile<input name="mobile" value=""></label>
+      <p class="hint">此表單提供一筆 PAYDETAIL 範例，欄位依 Doc/T112Request.json。</p>
+      <label>明細編號<input name="t112_detailNo" value="1"></label><label>明細金額<input name="t112_txnAmount" type="number" value="100"></label>
+      <label>帳單資料<input name="t112_billData" value="MOCK-BILL-1"></label><label>帳單批次<input name="t112_billBatch" value="001"></label>
+    </fieldset>
+    <fieldset data-code="T201" hidden><legend>T201 結案/取消資料（mock 測試值）</legend>
+      <label>pendingNo<input name="t201_pendingNo" value="MOCK-PENDING-001"></label>
+      <label>mFlag<input name="mFlag" value="N"></label><label>明細編號<input name="t201_detailNo" value="1"></label>
+    </fieldset>
+    <button id="submitButton" type="submit">送出電文</button>
+    <button type="reset">清除</button>
+  </form>
+  <p id="status" aria-live="polite"></p><p id="error" role="alert"></p>
+  <section id="resultSection" hidden><h2>主機回應</h2><p id="summary"></p><div id="tableContainer"></div><details><summary>完整 JSON</summary><pre id="jsonOutput"></pre></details></section>
+  <script>
+    const ENDPOINT = "/api/messages";
+    const form = document.getElementById("efcsForm");
+    const codeSelect = document.getElementById("prsCode");
+    const value = (name) => String(new FormData(form).get(name) ?? "");
+    const number = (name) => Number(value(name) || 0);
+    const now = () => new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+    function updateFields() {
+      document.querySelectorAll("fieldset[data-code]").forEach((el) => { el.hidden = el.dataset.code !== codeSelect.value; });
+    }
+    function buildRequest(code) {
+      const time = now();
+      const txnNo = value("txnNo") || `WEB-${time}-${crypto.randomUUID().slice(0, 8)}`;
+      const HEAD = { txnChannel: value("txnChannel"), prsCode: code, txnDataTime: time, txnNo,
+        billerId: value("billerId"), bTypeClass: value("bTypeClass"), icChkCode: "", icChkDesc: "" };
+      if (code === "T101") return { HEAD, BODY: { queryType: value("queryType"), queryData1: value("queryData1"),
+        queryData2: value("queryData2"), queryData3: value("queryData3"), queryData4: value("queryData4"),
+        queryData5: value("queryData5"), eBillSn: value("eBillSn"), outBankId: value("outBankId"), key: "" } };
+      if (code === "T102") return { HEAD, BODY: { PAYHEAD: { pendingNo: value("t102_pendingNo"), pendingNotAfter: "",
+        totalCount: number("t102_totalCount"), totalAmount: number("t102_totalAmount"), totalFee: number("t102_totalFee"),
+        outBankId: "", memberId: value("memberId"), payDatetime: time, checkType: "", billType: value("t102_billType"),
+        deviceId: "", carrierType: "", carrierNo: "", mobile: "", accountNo: "", cardNo: "", merchantId: "",
+        mccCode: "", terminal: "", email: "", querySeqNo: "" }, PAYDETAIL: [{ detailNo: value("detailNo"),
+        txnAmount: number("txnAmount"), billData: value("billData"), billBatch: value("billBatch") }], key: "" } };
+      if (code === "T112") return { HEAD, BODY: { PAYHEAD: { pendingNo: value("t112_pendingNo"),
+        pendingNotAfter: value("pendingNotAfter"), totalCount: number("t112_totalCount"), totalAmount: number("t112_totalAmount"),
+        outBankId: value("t112_outBankId"), memberId: value("t112_memberId"), outAccountNum: value("outAccountNum"),
+        payDatetime: time, checkType: value("checkType"), billType: value("t112_billType"), deviceId: value("deviceId"),
+        carrierType: value("carrierType"), carrierNo: value("carrierNo"), mobile: value("mobile") },
+        PAYDETAIL: [{ detailNo: value("t112_detailNo"), txnAmount: number("t112_txnAmount"),
+          billData: value("t112_billData"), billBatch: value("t112_billBatch") }] } };
+      return { HEAD, BODY: { PAYHEAD: { pendingNo: value("t201_pendingNo"), mFlag: value("mFlag") },
+        PAYDETAIL: [{ detailNo: value("t201_detailNo") }] } };
+    }
+    function renderResponse(code, data) {
+      const body = data.BODY || {};
+      const detailKey = code === "T101" ? "QUERYDETAIL" : code === "T102" ? "PAYDETAIL" : null;
+      document.getElementById("summary").textContent = detailKey
+        ? `${body[detailKey]?.length ?? 0} 筆明細；T101/T102 主機分頁結束 key=${body.key}`
+        : code === "T112" ? "T112 樣本回應只有 HEAD，請依主機規格確認回應欄位。" : `T201 回應：totalAmount=${body.totalAmount ?? "-"}, totalFee=${body.totalFee ?? "-"}`;
+      const container = document.getElementById("tableContainer"); container.replaceChildren();
+      if (detailKey && Array.isArray(body[detailKey])) {
+        const table = document.createElement("table");
+        const rows = body[detailKey];
+        const columns = code === "T101" ? [["queryDetailNo","明細號"],["queryBillData","帳單資料"],["queryAmount","金額"],["queryDate","日期"]]
+          : [["detailNo","明細號"],["billData","帳單資料"],["txnAmount","金額"],["rtnCodeDesc","結果"]];
+        const thead = table.createTHead().insertRow(); columns.forEach(([,title]) => { const th = document.createElement("th"); th.textContent = title; thead.append(th); });
+        const tbody = table.createTBody(); rows.forEach((row) => { const tr = tbody.insertRow(); columns.forEach(([key]) => { const td = tr.insertCell(); td.textContent = String(row[key] ?? "-"); }); });
+        container.append(table);
+      }
+      document.getElementById("jsonOutput").textContent = JSON.stringify(data, null, 2);
+      document.getElementById("resultSection").hidden = false;
+    }
+    codeSelect.addEventListener("change", updateFields); updateFields();
+    form.addEventListener("reset", () => setTimeout(updateFields));
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault(); const code = codeSelect.value;
+      const button = document.getElementById("submitButton"); button.disabled = true;
+      document.getElementById("error").textContent = ""; document.getElementById("resultSection").hidden = true;
+      document.getElementById("status").textContent = `正在送出 ${code}…`;
+      try {
+        const response = await fetch(`${ENDPOINT}/${code}`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(buildRequest(code)) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        const data = await response.json();
+        if (data.HEAD?.prsCode !== code) throw new Error("回應 HEAD.prsCode 與請求不一致");
+        if ((code === "T101" || code === "T102") && data.BODY?.key !== "END") throw new Error('T101/T102 預期彙總回應 BODY.key="END"');
+        renderResponse(code, data); document.getElementById("status").textContent = "交易呼叫完成。";
+        if ((new URLSearchParams(location.search).has("popup") || new URLSearchParams(location.search).has("embedded")) && window.opener) {
+          window.opener.postMessage({ type: "EFCS_RESULT", prsCode: code, response: data }, location.origin);
+        } else if (new URLSearchParams(location.search).has("embedded") && window.parent !== window) {
+          window.parent.postMessage({ type: "EFCS_RESULT", prsCode: code, response: data }, location.origin);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "未知錯誤";
+        document.getElementById("error").textContent = message; document.getElementById("status").textContent = "";
+        if (new URLSearchParams(location.search).has("popup") && window.opener) window.opener.postMessage({ type: "EFCS_ERROR", message }, location.origin);
+      } finally { button.disabled = false; }
+    });
+  </script>
+</body>
+</html>
