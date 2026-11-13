@@ -1,6 +1,7 @@
 package com.efcs.pay.factory;
 
 import com.efcs.pay.dto.MessageDtos.*;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -13,8 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class EfcsMessageFactoryTest {
     private final EfcsMessageFactory factory = new EfcsMessageFactory(
             Clock.fixed(Instant.parse("2026-11-13T12:00:00Z"), ZoneOffset.UTC));
-    private final EfcsMessageFactory.HeadContext context =
-            new EfcsMessageFactory.HeadContext("WEB", "BILLER001", "01");
+    private final EfcsMessageFactory.HeadContext context = new EfcsMessageFactory.HeadContext("WEB", "BILLER001", "01");
 
     @Test
     void createsT101EnvelopeWithProtocolHeader() {
@@ -29,14 +29,22 @@ class EfcsMessageFactoryTest {
 
     @Test
     void createsT102WithDetailList() {
-        var payHead = new T102PayHead("PENDING-1", "", 1, 100, 0, "", "MEMBER-1", "", "",
-                "01", "", "", "", "", "", "", "", "", "", "", "QUERY-1");
+        var payHead = new T102PayHead("PENDING-1", "", 1, 100, 0, "", "MEMBER-1", "", "", "01",
+                "", "", "", "", "", "", "", "", "", "", "QUERY-1");
         var body = new T102RequestBody(payHead,
                 List.of(EfcsMessageFactory.paymentDetail("1", 100, "BILL-1", "001")), "KEY");
         var message = factory.t102(context, body);
         assertEquals("T102", message.head().prsCode());
         assertEquals(1, message.body().payDetails().size());
-        assertEquals(100, message.body().payDetails().getFirst().txnAmount());
+        assertEquals(100, message.body().payDetails().get(0).txnAmount());
+    }
+
+    @Test
+    void serializesProtocolPropertyCasingUsingJackson3() {
+        var envelope = factory.t101(context, new T101RequestBody("01", "A1", "", "", "", "", "", "", ""));
+        var json = JsonMapper.builder().build().writeValueAsString(envelope);
+        assertTrue(json.contains("\"HEAD\""));
+        assertTrue(json.contains("\"BODY\""));
     }
 
     @Test

@@ -1,8 +1,8 @@
 package com.efcs.mock.service;
 
 import com.efcs.pay.dto.MessageDtos.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -15,9 +15,9 @@ public class MockMessageService {
     private static final String T101_NEXT = "MOCK-T101-PAGE-2";
     private static final String T102_NEXT = "MOCK-T102-PAGE-2";
     private static final String END_KEY = "END";
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
-    public MockMessageService(ObjectMapper objectMapper) { this.objectMapper = objectMapper; }
+    public MockMessageService(JsonMapper jsonMapper) { this.jsonMapper = jsonMapper; }
 
     public Envelope<?> respond(String prsCode, JsonNode input) {
         Class<?> requestType = switch (prsCode) {
@@ -27,7 +27,7 @@ public class MockMessageService {
             case "T201" -> T201RequestBody.class;
             default -> throw new IllegalArgumentException("Unsupported prsCode: " + prsCode);
         };
-        Envelope<?> request = objectMapper.convertValue(input, objectMapper.getTypeFactory()
+        Envelope<?> request = jsonMapper.convertValue(input, jsonMapper.getTypeFactory()
                 .constructParametricType(Envelope.class, requestType));
         if (request.head() == null || !prsCode.equals(request.head().prsCode())) {
             throw new IllegalArgumentException("URL prsCode must match HEAD.prsCode");
@@ -55,8 +55,7 @@ public class MockMessageService {
     }
 
     private T101QueryDetail t101Detail(String no, int amount) {
-        String bill = "MOCK-BILL-" + no;
-        return new T101QueryDetail(no, "N", bill, "001", amount, 0, "20261113", Integer.valueOf(no),
+        return new T101QueryDetail(no, "N", "MOCK-BILL-" + no, "001", amount, 0, "20261113", Integer.valueOf(no),
                 "Mock item " + no, "Sample " + no, "", "", "", "", "", "", "", "", "", "",
                 "", "", "", "", "", "", "", "");
     }

@@ -1,9 +1,9 @@
 package com.efcs.pay.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -18,15 +18,15 @@ public class EfcsMessageService {
     private static final Set<String> SUPPORTED_CODES = Set.of("T101", "T102", "T112", "T201");
     private static final String END_KEY = "END";
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final String hostUrl;
     private final int maxPages;
 
-    public EfcsMessageService(RestClient restClient, ObjectMapper objectMapper,
+    public EfcsMessageService(RestClient restClient, JsonMapper jsonMapper,
                               @Value("${efcs.host.base-url:http://localhost:8091/mock/efcs}") String hostUrl,
                               @Value("${efcs.pagination.max-pages:20}") int maxPages) {
         this.restClient = restClient;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = jsonMapper;
         this.hostUrl = hostUrl.replaceAll("/$", "");
         if (maxPages < 1) throw new IllegalArgumentException("efcs.pagination.max-pages must be >= 1");
         this.maxPages = maxPages;
@@ -49,11 +49,10 @@ public class EfcsMessageService {
 
     private JsonNode exchangePages(String code, ObjectNode request) {
         String detailName = code.equals("T101") ? "QUERYDETAIL" : "PAYDETAIL";
-        ArrayNode allDetails = objectMapper.createArrayNode();
+        ArrayNode allDetails = jsonMapper.createArrayNode();
         ObjectNode accumulatedBody = null;
         Set<String> returnedKeys = new HashSet<>();
         String requestKey = request.path("BODY").path("key").asText("");
-
         for (int page = 1; page <= maxPages; page++) {
             ((ObjectNode) request.get("BODY")).put("key", requestKey);
             JsonNode response = exchange(code, request);
@@ -61,22 +60,18 @@ public class EfcsMessageService {
             if (!bodyNode.isObject()) throw new IllegalStateException("Host response BODY is missing for " + code);
             JsonNode details = bodyNode.path(detailName);
             if (!details.isArray()) throw new IllegalStateException("Host response BODY." + detailName + " must be an array");
-
             details.forEach(allDetails::add);
             if (accumulatedBody == null) accumulatedBody = (ObjectNode) bodyNode.deepCopy();
             accumulatedBody.set(detailName, allDetails);
 
             String nextKey = bodyNode.path("key").asText("");
-            // Per protocol, END—not an empty string—is the terminal cursor.
             if (END_KEY.equals(nextKey)) {
                 accumulatedBody.put("key", END_KEY);
                 ObjectNode result = response.deepCopy();
                 result.set("BODY", accumulatedBody);
                 return result;
             }
-            if (nextKey.isBlank()) {
-                throw new IllegalStateException("Host returned an empty continuation key; expected END or a next-page key for " + code);
-            }
+            if (nextKey.isBlank()) throw new IllegalStateException("Host returned empty key; expected END or a continuation key for " + code);
             if (nextKey.equals(requestKey) || !returnedKeys.add(nextKey)) {
                 throw new IllegalStateException("Host returned a repeated continuation key for " + code);
             }
@@ -91,10 +86,8 @@ public class EfcsMessageService {
                 .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
                 .body(request).retrieve().body(String.class);
         try {
-            JsonNode json = objectMapper.readTree(response);
-            if (json == null || !json.path("HEAD").isObject()) {
-                throw new IllegalStateException("Host response HEAD is missing");
-            }
+            JsonNode json = jsonMapper.readTree(response);
+            if (json == null || !json.path("HEAD").isObject()) throw new IllegalStateException("Host response HEAD is missing");
             return json;
         } catch (IllegalStateException ex) {
             throw ex;

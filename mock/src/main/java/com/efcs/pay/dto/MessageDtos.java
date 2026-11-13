@@ -2,13 +2,11 @@ package com.efcs.pay.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 
-/** Shared wire DTO copy for the standalone mock project; keep in sync with eFCSPay. */
+/** Standalone wire DTO copy for mock; keep aligned with eFCSPay. */
 public final class MessageDtos {
     private MessageDtos() { }
-
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Envelope<T>(@JsonProperty("HEAD") Head head, @JsonProperty("BODY") T body) { }
     public record Head(String txnChannel, String prsCode, String txnDataTime, String txnNo,
@@ -24,15 +22,12 @@ public final class MessageDtos {
     public record T101QueryDetail(String queryDetailNo, String queryIsPay, String queryBillData,
                                   String queryBillBatch, Integer queryAmount, Integer queryHC1,
                                   String queryDate, Integer queryDataNo,
-                                  String queryDispName1, String queryDispData1,
-                                  String queryDispName2, String queryDispData2,
-                                  String queryDispName3, String queryDispData3,
-                                  String queryDispName4, String queryDispData4,
-                                  String queryDispName5, String queryDispData5,
-                                  String queryDispName6, String queryDispData6,
-                                  String queryDispName7, String queryDispData7,
-                                  String queryDispName8, String queryDispData8,
-                                  String queryDispName9, String queryDispData9,
+                                  String queryDispName1, String queryDispData1, String queryDispName2,
+                                  String queryDispData2, String queryDispName3, String queryDispData3,
+                                  String queryDispName4, String queryDispData4, String queryDispName5,
+                                  String queryDispData5, String queryDispName6, String queryDispData6,
+                                  String queryDispName7, String queryDispData7, String queryDispName8,
+                                  String queryDispData8, String queryDispName9, String queryDispData9,
                                   String queryDispName10, String queryDispData10) { }
     public record T102RequestBody(@JsonProperty("PAYHEAD") T102PayHead payHead,
                                   @JsonProperty("PAYDETAIL") List<PaymentDetail> payDetails, String key) { }
@@ -47,12 +42,11 @@ public final class MessageDtos {
     public record T102ResponsePayHead(Integer totalCount, Integer totalAmount, Integer tPaidCount,
                                       Integer tPaidAmount, String mFlag) { }
     public record T102ResponseDetail(String detailNo, Integer txnAmount, String billData, String billBatch,
-                                     String rtnCode, String rtnCodeDesc, String efcsSeqNo,
-                                     String efcsTxnDatetime, String billDate, Integer payDataNo,
-                                     String writeOffName1, String writeOffData1, String writeOffName2,
-                                     String writeOffData2, String writeOffName3, String writeOffData3,
-                                     String writeOffName4, String writeOffData4, String writeOffName5,
-                                     String writeOffData5) { }
+                                     String rtnCode, String rtnCodeDesc, String efcsSeqNo, String efcsTxnDatetime,
+                                     String billDate, Integer payDataNo, String writeOffName1, String writeOffData1,
+                                     String writeOffName2, String writeOffData2, String writeOffName3,
+                                     String writeOffData3, String writeOffName4, String writeOffData4,
+                                     String writeOffName5, String writeOffData5) { }
     public record T112RequestBody(@JsonProperty("PAYHEAD") T112PayHead payHead,
                                   @JsonProperty("PAYDETAIL") List<PaymentDetail> payDetails) { }
     public record T112PayHead(String pendingNo, String pendingNotAfter, Integer totalCount,
