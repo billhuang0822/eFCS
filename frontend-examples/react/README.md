@@ -1,15 +1,19 @@
-# React Axios example
+# React pagination examples
 
-Install Axios in the existing React application:
+Install Axios for the Axios hook/demo:
 
 ```sh
 npm install axios
 ```
 
-Files:
-- `src/useEfcsPagedQueryAxios.ts`: Axios hook with cancellation, loading/error states, validation that eFCSPay returns `BODY.key === "END"`, and local display pagination.
-- `src/EfcsPagedDemoAxios.tsx`: T101/T102 table demo with a load-more button.
+## Files
 
-Import and render `EfcsPagedDemoAxios` from your app entry point. The browser sends one request to `POST /api/messages/{prsCode}`. eFCSPay is responsible for repeatedly calling the host with each continuation key until `END`; the demo's **下一頁** button only reveals more of the already-aggregated rows and does not send another host request.
+- `src/useEfcsPagedQuery.ts`: Fetch-based hook.
+- `src/useEfcsPagedQueryAxios.ts`: Axios-based hook.
+- `src/EfcsPagedDemo.tsx` and `src/EfcsPagedDemoAxios.tsx`: T101/T102 table demos.
 
-If the frontend is hosted on another origin, configure a development proxy or set `endpoint` to the service URL and configure CORS on the service.
+Both hooks automatically fetch T101/T102 host pages **sequentially from the browser**. Each request sends one page to `POST /api/messages/{prsCode}`; eFCSPay proxies one host page and returns its `BODY.key`. The hook sends the next request with that cursor until it receives `END`, while aggregating `QUERYDETAIL` or `PAYDETAIL`. The UI's local “下一頁” button only controls how many aggregated rows are displayed; it does not initiate a host request.
+
+The hooks enforce a configurable page limit, detect empty/repeated cursors, report loading/errors, and abort outstanding requests on cleanup. A timeout can still affect an individual page request. Do not blindly retry T102 after ambiguous timeout; use the host's idempotency/status-query protocol.
+
+Render either demo component from your app entry point. The examples default to `/api/messages`; configure a same-origin development proxy or pass a service endpoint and configure CORS if the UI is hosted on another origin. Add authentication and server-side authorization for every page request; never rely on client-held cursors as authorization.

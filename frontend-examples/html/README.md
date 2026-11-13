@@ -1,7 +1,7 @@
 # Plain HTML demos
 
-Open `fetch.html` or `axios.html` from the same origin as eFCSPay, or serve this directory with a local web server and configure a development proxy/CORS.
+Serve `fetch.html`, `axios.html`, `form.html`, and `iframe-popup.html` over HTTP. Do not open them as `file://`. Use the same origin as eFCSPay or configure a development proxy/CORS.
 
-Both demos call `POST /api/messages/{T101|T102}` once. eFCSPay follows host continuation keys until `BODY.key` is `END` and combines the response details. The **下一頁** button only reveals the next batch from the combined list in the browser; it does not call the host again.
+For T101/T102, the Fetch/Axios and form demos automatically issue sequential cursor requests from the browser. Each call to `POST /api/messages/{prsCode}` causes eFCSPay to proxy exactly one host page. The browser carries the response `BODY.key` to the next request and stops at `END`. The demo then aggregates the page details. This is different from local “show more” display behavior, which only reveals already-fetched rows.
 
-`axios.html` loads Axios 1.7.9 from jsDelivr. For offline or production use, install Axios in the frontend project and bundle it instead of relying on the CDN.
+`axios.html` loads Axios 1.7.9 from jsDelivr. For offline or production use, install Axios in the frontend project and bundle it instead of relying on the CDN. These are integration examples, not production payment forms; replace mock values and apply authentication, authorization, validation, HTTPS, and sensitive-data protections.

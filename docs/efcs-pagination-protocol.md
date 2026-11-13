@@ -1,36 +1,30 @@
-# eFCS Payment Message Workflow
+# eFCS T101/T102 pagination protocol and implementation
 
-This project models the real eFCS message flow for transactions T101 and T102.
+## Protocol rule
 
-## Core protocol rule
+T101 and T102 are cursor-based continuation flows. The request's `BODY.key` is the current cursor. Each host response includes one page of `QUERYDETAIL` (T101) or `PAYDETAIL` (T102), plus `BODY.key` containing either the next cursor or the terminal marker `END`.
 
-For T101 and T102, the transaction is not a single request/response. It is a paginated continuation flow:
+- Start with the protocol-defined initial cursor (the mock uses an empty string).
+- For a non-terminal response, send the same transaction data with the returned key in `BODY.key`.
+- `END`—not an empty string—marks completion.
+- Preserve the transaction identity/header across continuation calls unless the host protocol explicitly specifies otherwise.
 
-1. Client sends request with `BODY.key`.
-2. Host replies with a page of data and a next continuation key.
-3. If the host returns a non-empty continuation key, the client sends the same transaction again with that exact key.
-4. When the host returns `"key": "END"`, the pagination is complete.
-5. The client merges `QUERYDETAIL` or `PAYDETAIL` from all pages before presenting the result.
+## Browser-driven architecture
 
-Rules:
-- `key` is not optional for a continuation flow.
-- `"END"` is the terminal marker.
-- Empty string is not treated as terminal in the protocol model used here.
+The browser automatically issues these requests sequentially so one web request does not stay open while the server fetches every host page:
 
-## T101/T102 mock example
+1. Browser sends initial request to `POST /api/messages/T101` or `/api/messages/T102`.
+2. The service validates the URL and `HEAD.prsCode`, makes exactly one host request, and returns that page and its cursor.
+3. Browser appends the page's detail entries and automatically sends the next request with the returned `BODY.key`.
+4. Browser stops at `BODY.key === "END"` and presents the aggregated detail rows.
 
-- First page: `"key": "MOCK-T101-PAGE-2"` or `"MOCK-T102-PAGE-2"`
-- Last page: `"key": "END"`
+The backend must not loop over the cursor in one request. Each individual browser-to-service call is short relative to fetching all pages, though any single host call can still take long enough to time out. The browser should not issue pages in parallel because it cannot know the next cursor before the prior response.
 
-## Java service behavior
+The mock uses `MOCK-T101-PAGE-2` / `MOCK-T102-PAGE-2` as the first page's next cursor and returns `END` on the second page.
 
-The Java service in `eFCSPay` follows the cursor until the host returns `"END"`. The `QUERYDETAIL`/`PAYDETAIL` entries are cumulatively merged in memory before returning the final payload to the caller.
+## Sample request and continuation
 
-## Backend mock behavior
-
-The mock server in `mock` simulates two pages and then ends with `"key": "END"`. This lets you test page-following logic without a real host.
-
-## Example request flow
+Initial T101 request:
 
 ```json
 {
@@ -58,41 +52,15 @@ The mock server in `mock` simulates two pages and then ends with `"key": "END"`.
 }
 ```
 
-The host returns, for example:
+If the first response contains `BODY.key: "MOCK-T101-PAGE-2"`, the browser sends the same request data again with that key. The response's `BODY.key: "END"` signals the final page. The client combines `QUERYDETAIL` across pages. For T102, it combines `PAYDETAIL` in the same manner.
 
-```json
-{
-  "HEAD": { "prsCode": "T101", "icChkCode": "0000", "icChkDesc": "成功" },
-  "BODY": {
-    "QUERYHEAD": { "totalCount": 2, "totalAmount": 300 },
-    "QUERYDETAIL": [ { "queryDetailNo": "1" } ],
-    "key": "MOCK-T101-PAGE-2"
-  }
-}
-```
+## Implementation references
 
-Then the next request uses the returned key:
+- Backend one-page proxy: `eFCSPay/src/main/java/com/efcs/pay/service/EfcsMessageService.java`
+- React Fetch and Axios hooks: `frontend-examples/react/src/useEfcsPagedQuery.ts` and `useEfcsPagedQueryAxios.ts`
+- Vue composable: `frontend-examples/vue/src/useEfcsPagedQuery.ts`
+- Standalone demos: `frontend-examples/html/fetch.html` and `axios.html`
 
-```json
-{
-  "HEAD": { "prsCode": "T101" },
-  "BODY": {
-    "queryType": "01",
-    "queryData1": "A001",
-    "key": "MOCK-T101-PAGE-2"
-  }
-}
-```
+## Safety and operations
 
-And the final page returns:
-
-```json
-{
-  "HEAD": { "prsCode": "T101", "icChkCode": "0000", "icChkDesc": "成功" },
-  "BODY": {
-    "QUERYHEAD": { "totalCount": 2, "totalAmount": 300 },
-    "QUERYDETAIL": [ { "queryDetailNo": "2" } ],
-    "key": "END"
-  }
-}
-```
+Authorize every page call and bind the cursor to the authenticated user/transaction when possible. Treat client-supplied request bodies and cursors as untrusted input. Cap page count and reject empty/repeated cursors. Do not automatically replay T102 after an ambiguous timeout: use the host's idempotency and transaction-status procedures. Avoid logging sensitive payload fields.
