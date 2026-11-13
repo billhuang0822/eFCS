@@ -1,0 +1,60 @@
+{
+  "HEAD": {
+    "txnChannel": "",
+    "prsCode": "T101",
+    "txnDataTime": "",
+    "txnNo": "",
+    "billerId": "",
+    "bTypeClass": "",
+    "icChkCode": "",
+    "icChkDesc": ""
+  },
+  "BODY": {
+    "QUERYHEAD": {
+      "pendingNo": "",
+      "pendingNotAfter": "",
+      "totalCount": 0,
+      "totalAmount": 0,
+      "billerNickName": "",
+      "bTypeClassName": "",
+      "billType": "",
+      "wFlag": "",
+      "mFlag": "",
+      "returnUrl": "",
+      "querySeqNo": ""
+    },
+     "QUERYDETAIL": [
+      {
+        "queryDetailNo": "",
+        "queryIsPay": "",
+        "queryBillData": "",
+        "queryBillBatch": "",
+        "queryAmount": 0,
+        "queryHC1": 0,
+        "queryDate": "",
+        "queryDataNo": 0,
+        "queryDispName1": "",
+        "queryDispData1": "",
+        "queryDispName2": "",
+        "queryDispData2": "",
+        "queryDispName3": "",
+        "queryDispData3": "",
+        "queryDispName4": "",
+        "queryDispData4": "",
+        "queryDispName5": "",
+        "queryDispData5": "",
+        "queryDispName6": "",
+        "queryDispData6": "",
+        "queryDispName7": "",
+        "queryDispData7": "",
+        "queryDispName8": "",
+        "queryDispData8": "",
+        "queryDispName9": "",
+        "queryDispData9": "",
+        "queryDispName10": "",
+        "queryDispData10": ""
+      }
+    ],
+    "key": ""
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "HEAD": {
+    "txnChannel": "",
+    "prsCode": "T102",
+    "txnDataTime": "",
+    "txnNo": "",
+    "billerId": "",
+    "bTypeClass": "",
+    "icChkCode": "",
+    "icChkDesc": ""
+  },
+  "BODY": {
+  "PAYHEAD": {
+    "totalCount": 0,
+    "totalAmount": 0,
+    "tPaidCount": 0,
+    "tPaidAmount": 0,
+    "mFlag": ""
+  },
+  "PAYDETAIL": [
+    {
+      "detailNo": "",
+      "txnAmount": 0,
+      "billData": "",
+      "billBatch": "",
+      "rtnCode": "",
+      "rtnCodeDesc": "",
+      "efcsSeqNo": "",
+      "efcsTxnDatetime": "",
+      "billDate": "",
+      "payDataNo": 0,
+      "writeOffName1": "",
+      "writeOffData1": "",
+      "writeOffName2": "",
+      "writeOffData2": "",
+      "writeOffName3": "",
+      "writeOffData3": "",
+      "writeOffName4": "",
+      "writeOffData4": "",
+      "writeOffName5": "",
+      "writeOffData5": ""
+    }
+  ],
+  "key": ""
+  }
+}

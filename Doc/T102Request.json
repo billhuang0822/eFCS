@@ -1,0 +1,46 @@
+{
+  "HEAD": {
+    "txnChannel": "",
+    "prsCode": "T102",
+    "txnDataTime": "",
+    "txnNo": "",
+    "billerId": "",
+    "bTypeClass": "",
+    "icChkCode": "",
+    "icChkDesc": ""
+  },
+  "BODY": {
+  "PAYHEAD": {
+    "pendingNo": "",
+    "pendingNotAfter": "",
+    "totalCount": 0,
+    "totalAmount": 0,
+    "totalFee": 0,
+    "outBankId": "",
+    "memberId": "",
+    "payDatetime": "",
+    "checkType": "",
+    "billType": "",
+    "deviceId": "",
+    "carrierType": "",
+    "carrierNo": "",
+    "mobile": "",
+    "accountNo": "",
+    "cardNo": "",
+    "merchantId": "",
+    "mccCode": "",
+    "terminal": "",
+    "email": "",
+    "querySeqNo": ""
+  },
+  "PAYDETAIL": [
+    {
+      "detailNo": "",
+      "txnAmount": 0,
+      "billData": "",
+      "billBatch": ""
+    }
+  ],
+  "key": ""
+  }
+}

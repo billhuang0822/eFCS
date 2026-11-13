@@ -1,0 +1,23 @@
+{
+  "HEAD": {
+    "txnChannel": "",
+    "prsCode": "T101",
+    "txnDataTime": "",
+    "txnNo": "",
+    "billerId": "",
+    "bTypeClass": "",
+    "icChkCode": "",
+    "icChkDesc": ""
+  },
+  "BODY": {
+    "queryType": "",
+    "queryData1": "",
+    "queryData2": "",
+    "queryData3": "",
+    "queryData4": "",
+    "queryData5": "",
+    "eBillSn": "",
+    "outBankId": "",
+    "key": ""
+  }
+}
