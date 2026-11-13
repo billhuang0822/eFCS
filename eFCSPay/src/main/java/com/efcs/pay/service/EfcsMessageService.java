@@ -16,6 +16,7 @@ import java.util.Set;
 @Service
 public class EfcsMessageService {
     private static final Set<String> SUPPORTED_CODES = Set.of("T101", "T102", "T112", "T201");
+    private static final String END_KEY = "END";
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String hostUrl;
@@ -66,11 +67,15 @@ public class EfcsMessageService {
             accumulatedBody.set(detailName, allDetails);
 
             String nextKey = bodyNode.path("key").asText("");
-            if (nextKey.isBlank()) {
-                accumulatedBody.put("key", "");
+            // Per protocol, END—not an empty string—is the terminal cursor.
+            if (END_KEY.equals(nextKey)) {
+                accumulatedBody.put("key", END_KEY);
                 ObjectNode result = response.deepCopy();
                 result.set("BODY", accumulatedBody);
                 return result;
+            }
+            if (nextKey.isBlank()) {
+                throw new IllegalStateException("Host returned an empty continuation key; expected END or a next-page key for " + code);
             }
             if (nextKey.equals(requestKey) || !returnedKeys.add(nextKey)) {
                 throw new IllegalStateException("Host returned a repeated continuation key for " + code);
