@@ -1,6 +1,8 @@
 package com.efcs.mock.api;
 
 import com.efcs.mock.service.MockMessageService;
+import com.efcs.pay.dto.MessageDtos.Envelope;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,19 +18,14 @@ import java.util.Map;
 public class MockMessageController {
     private final MockMessageService service;
 
-    public MockMessageController(MockMessageService service) {
-        this.service = service;
-    }
+    public MockMessageController(MockMessageService service) { this.service = service; }
 
     @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of("status", "UP", "service", "efcs-mock-host");
-    }
+    public Map<String, String> health() { return Map.of("status", "UP", "service", "efcs-mock-host"); }
 
     @PostMapping(value = "/{prsCode}", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, Object> handle(@PathVariable String prsCode,
-                                      @RequestBody Map<String, Object> request) {
+    public Envelope<?> handle(@PathVariable String prsCode, @RequestBody JsonNode request) {
         return service.respond(prsCode, request);
     }
 }
