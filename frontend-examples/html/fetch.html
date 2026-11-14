@@ -35,7 +35,7 @@
       }throw new Error(`超過最大分頁數 ${maxPages}`);
     }
     el("submit").addEventListener("click",async()=>{const code=el("code").value;controller?.abort();controller=new AbortController();el("error").textContent="";el("results").hidden=true;el("submit").disabled=true;
-      try{const final=await fetchAllPages(code,buildRequest(code),controller.signal);render(code,true);el("status").textContent=`完成，主機 key=${final.BODY.key}`)}catch(error){if(error.name!=="AbortError")el("error").textContent=error instanceof Error?error.message:"未知錯誤";el("status").textContent=""}finally{el("submit").disabled=false}});
+      try{const final=await fetchAllPages(code,buildRequest(code),controller.signal);render(code,true);el("status").textContent=`完成，主機 key=${final.BODY.key}`}catch(error){if(error.name!=="AbortError")el("error").textContent=error instanceof Error?error.message:"未知錯誤";el("status").textContent=""}finally{el("submit").disabled=false}});
     el("more").addEventListener("click",()=>{visibleCount=Math.min(visibleCount+pageSize,allRows.length);render(el("code").value,true)});
   </script>
 </body>
